@@ -1,0 +1,103 @@
+import pandas as pd
+import socket
+import struct
+
+# Load the CSV file containing IP ranges and country codes
+ip_data = pd.read_csv('path_to_your_local_ip_geolocation_file.csv', names=['ip_start', 'ip_end', 'country'])
+
+def normalize_ip(ip_address):
+    """Normalize IP address by removing leading zeros and handling out-of-range values."""
+    # Split the IP address into octets
+    octets = ip_address.split('.')
+    # Convert each octet to an integer to remove leading zeros
+    octets = [str(int(octet)) for octet in octets]
+    # Join them back into the normalized IP address
+    return '.'.join(octets)
+
+def ip_to_int(ip_address):
+    """Convert normalized IP address string to an integer."""
+    normalized_ip = normalize_ip(ip_address)
+    return struct.unpack("!I", socket.inet_aton(normalized_ip))[0]
+
+def get_ip_location(ip_address):
+    """Return the country code for a given IP address."""
+    ip_int = ip_to_int(ip_address)
+    location_info = ip_data[(ip_data['ip_start'] <= ip_int) & (ip_data['ip_end'] >= ip_int)]
+    
+    if not location_info.empty:
+        return location_info.iloc[0]['country']
+    else:
+        return 'Unknown'
+
+# Tableau Script
+SCRIPT_STR("
+locations = [get_ip_location(ip) for ip in _arg1]
+return locations
+", ATTR([IP_ADDRESS_FIELD]))
+
+
+
+CREATE TABLE ip_geolocation (
+    ip_start BIGINT,
+    ip_end BIGINT,
+    country_code VARCHAR(3)
+);
+
+LOAD DATA INFILE 'path_to_your_csv_file.csv'
+INTO TABLE ip_geolocation
+FIELDS TERMINATED BY ',' 
+LINES TERMINATED BY '\n'
+(ip_start, ip_end, country_code);
+
+import mysql.connector
+import socket
+import struct
+
+def normalize_ip(ip_address):
+    """Normalize IP address by removing leading zeros and handling out-of-range values."""
+    octets = ip_address.split('.')
+    octets = [str(int(octet)) for octet in octets]
+    return '.'.join(octets)
+
+def ip_to_int(ip_address):
+    """Convert normalized IP address string to an integer."""
+    normalized_ip = normalize_ip(ip_address)
+    return struct.unpack("!I", socket.inet_aton(normalized_ip))[0]
+
+def get_ip_location(ip_address):
+    """Return the country code for a given IP address."""
+    ip_int = ip_to_int(ip_address)
+    
+    # Connect to the database
+    conn = mysql.connector.connect(
+        host="your_database_host",
+        user="your_database_user",
+        password="your_database_password",
+        database="your_database_name"
+    )
+    
+    cursor = conn.cursor()
+    
+    # Query the database for the corresponding IP range
+    query = "SELECT country_code FROM ip_geolocation WHERE ip_start <= %s AND ip_end >= %s LIMIT 1"
+    cursor.execute(query, (ip_int, ip_int))
+    
+    result = cursor.fetchone()
+    
+    # Close the database connection
+    cursor.close()
+    conn.close()
+    
+    if result:
+        return result[0]  # Return the country code
+    else:
+        return 'Unknown'
+
+# Tableau Script
+SCRIPT_STR("
+locations = [get_ip_location(ip) for ip in _arg1]
+return locations
+", ATTR([IP_ADDRESS_FIELD]))
+
+
+
