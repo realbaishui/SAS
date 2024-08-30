@@ -1,0 +1,37 @@
+-- Convert the IP address to integer
+WITH ip_int_conversion AS (
+    SELECT 
+        ID_Number,
+        IP_Address,
+        CASE 
+            WHEN IP_Address = 'NNNNNNNNNNNNN' THEN 'N/A'
+            ELSE CAST(
+                    (CAST(SUBSTR(IP_Address, 1, POSITION('.' IN IP_Address) - 1) AS INTEGER) * POWER(256, 3)) +
+                    (CAST(SUBSTR(IP_Address, POSITION('.' IN IP_Address) + 1, POSITION('.' IN SUBSTR(IP_Address FROM POSITION('.' IN IP_Address) + 1)) - 1) AS INTEGER) * POWER(256, 2)) +
+                    (CAST(SUBSTR(IP_Address, POSITION('.' IN SUBSTR(IP_Address FROM POSITION('.' IN IP_Address) + 1)) + POSITION('.' IN IP_Address) + 1, POSITION('.' IN SUBSTR(IP_Address FROM POSITION('.' IN SUBSTR(IP_Address FROM POSITION('.' IN IP_Address) + 1)) + POSITION('.' IN IP_Address) + 1)) - 1) AS INTEGER) * 256) +
+                    CAST(SUBSTR(IP_Address FROM POSITION('.' IN SUBSTR(IP_Address FROM POSITION('.' IN SUBSTR(IP_Address FROM POSITION('.' IN IP_Address) + 1)) + POSITION('.' IN IP_Address) + 1)) + POSITION('.' IN SUBSTR(IP_Address FROM POSITION('.' IN IP_Address) + 1)) + POSITION('.' IN IP_Address) + 1) AS INTEGER)
+                AS BIGINT)
+        END AS ip_int
+    FROM main_table
+),
+
+-- Join IP integer with the geolocation data
+location_assignment AS (
+    SELECT
+        c.ID_Number,
+        c.IP_Address,
+        CASE 
+            WHEN c.ip_int = 'N/A' THEN 'N/A'
+            ELSE g.country
+        END AS Location
+    FROM ip_int_conversion c
+    LEFT JOIN ip_data_table g
+    ON c.ip_int BETWEEN g.ip_start AND g.ip_end
+)
+
+-- Count the number of unique locations per ID_Number
+SELECT 
+    ID_Number, 
+    COUNT(DISTINCT Location) AS unique_location_count
+FROM location_assignment
+GROUP BY ID_Number;
