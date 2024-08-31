@@ -1,0 +1,39 @@
+CREATE VOLATILE TABLE ip_calculation AS (
+    SELECT 
+        main.fi_transaction_id,
+        main.IP_Address,
+        -- Calculate each octet individually, adding safeguards for out-of-bounds errors
+        CASE 
+            WHEN POSITION('.' IN main.IP_Address) > 0 
+            THEN CAST(SUBSTR(main.IP_Address, 1, POSITION('.' IN main.IP_Address) - 1) AS INTEGER) * POWER(256, 3)
+            ELSE 0
+        END AS octet1,
+        
+        CASE 
+            WHEN POSITION('.' IN main.IP_Address) > 0 
+                 AND POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1)) > 0 
+            THEN CAST(SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1, POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1)) - 1) AS INTEGER) * POWER(256, 2)
+            ELSE 0
+        END AS octet2,
+        
+        CASE 
+            WHEN POSITION('.' IN main.IP_Address) > 0 
+                 AND POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1)) > 0 
+                 AND POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1)) + POSITION('.' IN main.IP_Address) + 1)) > 0 
+            THEN CAST(SUBSTR(main.IP_Address, POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1)) + POSITION('.' IN main.IP_Address) + 1, POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1)) + POSITION('.' IN main.IP_Address) + 1)) - 1) AS INTEGER) * 256
+            ELSE 0
+        END AS octet3,
+        
+        CASE 
+            WHEN POSITION('.' IN main.IP_Address) > 0 
+                 AND POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1)) > 0 
+                 AND POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1)) + POSITION('.' IN main.IP_Address) + 1)) > 0
+            THEN CAST(SUBSTR(main.IP_Address, POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1)) + POSITION('.' IN main.IP_Address) + 1)) + POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1)) + POSITION('.' IN main.IP_Address) + 1) AS INTEGER)
+            ELSE 0
+        END AS octet4,
+        
+        -- Sum the octets to get the final integer value for the IP address
+        (octet1 + octet2 + octet3 + octet4) AS ip_integer
+    FROM main_table main
+    WHERE main.IP_Address <> 'NNNNNNNNNNNNN'
+) WITH DATA PRIMARY INDEX (fi_transaction_id) ON COMMIT PRESERVE ROWS;
