@@ -1,0 +1,27 @@
+-- Create a volatile table to store the normalized IP address and calculated integer representation
+CREATE VOLATILE TABLE ip_calculation AS (
+    SELECT 
+        main.ID_Number,
+        main.IP_Address,
+        -- Calculate each octet individually
+        CAST(SUBSTR(main.IP_Address, 1, POSITION('.' IN main.IP_Address) - 1) AS INTEGER) * POWER(256, 3) AS octet1,
+        CAST(SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1, POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1)) - 1) AS INTEGER) * POWER(256, 2) AS octet2,
+        CAST(SUBSTR(main.IP_Address, POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1)) + POSITION('.' IN main.IP_Address) + 1, POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1)) + POSITION('.' IN main.IP_Address) + 1)) - 1) AS INTEGER) * 256 AS octet3,
+        CAST(SUBSTR(main.IP_Address, POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1)) + POSITION('.' IN main.IP_Address) + 1)) + POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1)) + POSITION('.' IN main.IP_Address) + 1) AS INTEGER) AS octet4,
+        -- Sum the octets to get the final integer value for the IP address
+        (CAST(SUBSTR(main.IP_Address, 1, POSITION('.' IN main.IP_Address) - 1) AS INTEGER) * POWER(256, 3)) +
+        (CAST(SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1, POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1)) - 1) AS INTEGER) * POWER(256, 2)) +
+        (CAST(SUBSTR(main.IP_Address, POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1)) + POSITION('.' IN main.IP_Address) + 1, POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1)) + POSITION('.' IN main.IP_Address) + 1)) - 1) AS INTEGER) * 256) +
+        CAST(SUBSTR(main.IP_Address, POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1)) + POSITION('.' IN main.IP_Address) + 1)) + POSITION('.' IN SUBSTR(main.IP_Address, POSITION('.' IN main.IP_Address) + 1)) + POSITION('.' IN main.IP_Address) + 1) AS INTEGER) AS ip_integer
+    FROM main_table main
+    WHERE main.IP_Address <> 'NNNNNNNNNNNNN'
+) WITH DATA PRIMARY INDEX (ID_Number) ON COMMIT PRESERVE ROWS;
+
+-- Now join with the IP data table to find the location
+SELECT 
+    ip_calc.ID_Number,
+    ip_calc.IP_Address,
+    COALESCE(g.country, 'Unknown') AS Location
+FROM ip_calculation ip_calc
+LEFT JOIN ip_data_table g
+ON ip_calc.ip_integer BETWEEN g.ip_start AND g.ip_end;
