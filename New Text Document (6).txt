@@ -1,0 +1,33 @@
+import os
+
+def replace_words_in_files(folder_path, replacements):
+    # Loop through each file in the folder
+    for filename in os.listdir(folder_path):
+        if filename.endswith(".txt"):
+            file_path = os.path.join(folder_path, filename)
+            
+            # Read file content
+            with open(file_path, 'r', encoding='utf-8') as file:
+                file_content = file.read()
+                
+            # Replace each target word with its replacement
+            for target_word, replacement_word in replacements.items():
+                file_content = file_content.replace(target_word, replacement_word)
+            
+            # Write the modified content back to the file
+            with open(file_path, 'w', encoding='utf-8') as file:
+                file.write(file_content)
+
+    print("Replacement complete in all files.")
+
+# Define the folder path and the replacements dictionary
+folder_path = "C:/Path/To/Your/Folder"  # Change this to your folder path
+replacements = {
+    "word1": "word11",
+    "word2": "word22",
+    "word3": "word33",
+    # Add more replacements as needed
+}
+
+# Run the function
+replace_words_in_files(folder_path, replacements)
