@@ -1,0 +1,86 @@
+/* Import Data */
+proc import datafile='path_to_your_data.csv' 
+    out=final_data
+    dbms=csv
+    replace;
+    getnames=yes;
+run;
+
+/* Variables to Analyze */
+%let variables = ;
+
+/* Macro for Analysis */
+%macro analyze_variables;
+    %let n = 1;
+    %let var = %scan(&variables, &n);
+
+    %do %while (&var ne );
+
+        %put Analyzing Variable: &var;
+
+        /* Summary Statistics for Z-Test */
+        proc means data=final_data noprint;
+            where Variation = 'Control';
+            var &var;
+            output out=control_stats mean=control_mean std=control_std n=control_n;
+        run;
+
+        proc means data=final_data noprint;
+            where Variation = 'Test';
+            var &var;
+            output out=test_stats mean=test_mean std=test_std n=test_n;
+        run;
+
+        /* Combine Control and Test Statistics */
+        data combined_stats;
+            merge control_stats(rename=(control_mean=mean1 control_std=std1 control_n=n1))
+                  test_stats(rename=(test_mean=mean2 test_std=std2 test_n=n2));
+            by _type_; /* Merges on automatic grouping variable */
+        run;
+
+        /* Compute Z-Statistic and P-Value */
+        data z_test_results;
+            set combined_stats;
+            /* Compute Z-statistic */
+            z_stat = (mean1 - mean2) / sqrt((std1**2 / n1) + (std2**2 / n2));
+            /* Compute two-tailed P-value */
+            p_value = 2 * (1 - probnorm(abs(z_stat)));
+        run;
+
+        /* Display Z-Test Results */
+        proc print data=z_test_results noobs label;
+            var mean1 mean2 std1 std2 n1 n2 z_stat p_value;
+            label mean1 = "Control Mean"
+                  mean2 = "Test Mean"
+                  std1 = "Control Std Dev"
+                  std2 = "Test Std Dev"
+                  n1 = "Control Sample Size"
+                  n2 = "Test Sample Size"
+                  z_stat = "Z-Statistic"
+                  p_value = "P-Value";
+            title "Z-Test Results for &var";
+        run;
+
+        /* Wilcoxon Rank-Sum Test (Mann-Whitney U Test) */
+        proc npar1way data=final_data wilcoxon;
+            class Variation;
+            var &var;
+            title "Wilcoxon Rank-Sum Test for &var";
+        run;
+
+        /* Kruskal-Wallis Test */
+        proc npar1way data=final_data;
+            class Variation;
+            var &var;
+            exact wilcoxon;
+            title "Kruskal-Wallis Test for &var";
+        run;
+
+        %let n = %eval(&n + 1);
+        %let var = %scan(&variables, &n);
+
+    %end;
+%mend analyze_variables;
+
+/* Run the Macro */
+%analyze_variables;
